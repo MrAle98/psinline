@@ -1,0 +1,13 @@
+BOFNAME := psinline
+CC_x64 := x86_64-w64-mingw32-gcc
+CC_x86 := i686-w64-mingw32-gcc
+GCC := gcc
+STRIP_x64 := x86_64-w64-mingw32-strip
+STRIP_x86 := i686-w64-mingw32-strip
+OPTIONS := -masm=intel -Wall -I include -Wl,--dynamicbase
+
+psinline:
+	$(CC_x64) -c psinline.c -o $(BOFNAME).x64.o $(OPTIONS)
+	#$(STRIP_x64) --strip-unneeded $(BOFNAME).x64.o
+clean:
+	rm $(BOFNAME).x64.o
