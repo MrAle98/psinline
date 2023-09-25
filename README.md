@@ -37,13 +37,13 @@ Pre-compiled binaries are available in the release package.
 
 First use coff_args to set PowerView.ps1 as powershell script to load and then use coffexec to execute **Get-NetLocalGroup**:
 ```
-=> set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/PowerView.ps1
+=> set_coffargs /path/to/PS.exe /path/to/PowerView.ps1
 
 2023/09/25 13:51:49 CEST [sent 1842868 bytes]
 
 [*] CoffExec Arguments Updated
 +-------------------------------------------------------------------+
-=> coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup | fl *
+=> coffexec /path/to/psinline.x64.o Get-NetLocalGroup | fl *
 
 2023/09/25 13:52:35 CEST [sent 41592 bytes]
 
@@ -76,7 +76,7 @@ Comment      : Administrators have complete and unrestricted access to the compu
 
 Set script to import a dummy powershell script and then run **ls** command with coffexec. You can find an example of dummy powershell script in the release package, named dummy.ps1:
 ```
-=> set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/dummy.ps1 
+=> set_coffargs /path/to/PS.exe /path/to/dummy.ps1 
 
 2023/09/25 14:28:26 CEST [sent 17032 bytes]
 
