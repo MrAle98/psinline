@@ -1,6 +1,6 @@
 # psinline
 
-BOF for executing powershell directly in current process memory, avoiding process injections. Takes as input PS.exe an assembly running powershell commands base64 encoded. Code mostly taken from [Havoc](https://github.com/HavocFramework/Havoc),
+BOF for executing powershell directly in current process memory, avoiding process injections. Takes as input PS.exe, an assembly running base64-encoded powershell commands. Code mostly taken from [Havoc](https://github.com/HavocFramework/Havoc),
 for hardware breakpoints and [InlineExecute-Assembly](https://github.com/anthemtotheego/InlineExecute-Assembly) for running assemblies through BOF.
 
 ## How it works 
