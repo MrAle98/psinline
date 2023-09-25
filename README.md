@@ -70,7 +70,8 @@ Comment      : Administrators have complete and unrestricted access to the compu
 
 ```
 
-![image](https://github.com/MrAle98/psinline/assets/74059030/29b96742-c21f-43df-a2a7-a310ca0b7c66)
+![image](https://github.com/MrAle98/psinline/assets/74059030/45478a52-8b01-424b-a9fa-1f140f05354c)
+
 
 ### Run generic powershell command
 
@@ -105,7 +106,8 @@ d-----          6/2/2023   5:00 PM                demo
 [+] psinline Finished
 ```
 
-![image](https://github.com/MrAle98/psinline/assets/74059030/39521fbc-a5e9-4b8e-afae-740001525c13)
+![image](https://github.com/MrAle98/psinline/assets/74059030/f50e3139-f834-4e52-a9db-ee45decd071c)
+
 
 ## Notes
 
