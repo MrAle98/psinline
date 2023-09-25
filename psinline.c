@@ -11,7 +11,6 @@
 #include "utils.h"
 //#include "global.c"
 
-#if _WIN64
 
 WCHAR** gdispatch = NULL;
 
@@ -43,7 +42,6 @@ VOID HwBpExNtTraceEvent(
     EXCEPTION_SET_RIP( Exception, U_PTR( Return ) );
 }
 
-#endif
 //
 ////START HWBPENGINE
 PHWBP_ENGINE gEngine = NULL;
@@ -782,9 +780,7 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     {
         wNetVersion = L"v2.0.50727";
     }
-#ifdef DEBUG
     BadgerDispatchW(gdispatch,L"[*] Using .NET version %ws\n",wNetVersion);
-#endif
     ghMutex = KERNEL32$CreateMutexA(
             NULL,              // default security attributes
             FALSE,             // initially not owned
@@ -1093,7 +1089,6 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         success = KERNEL32$FreeConsole();
     }
 
-#ifdef DEBUG
-    BadgerDispatch(gdispatch, "[+] inlineExecute-Assembly Finished\n");
-#endif
+    BadgerDispatch(gdispatch, "[+] psinline Finished\n");
+
 }
