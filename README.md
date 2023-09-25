@@ -14,9 +14,9 @@ The BOF concatenates your powershell command to the powershell script, base64 en
 
 ## Examples
 
-### Run cmdlet from PowerView
+### Run PowerView cmdlet
 
-First use coff_args to set PowerView.ps1 as powershell script to load and then use coffexec to execute Get-NetLocalGroup:
+First use coff_args to set PowerView.ps1 as powershell script to load and then use coffexec to execute **Get-NetLocalGroup**:
 ```
 => set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/PowerView.ps1
 
@@ -90,7 +90,7 @@ Comment      : Administrators have complete and unrestricted access to the compu
 
 ### Run generic powershell command
 
-Set script to import a dummy powershell script and then run ls command with coffexec:
+Set script to import a dummy powershell script and then run **ls** command with coffexec:
 ```
 => set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/dummy.ps1 
 
