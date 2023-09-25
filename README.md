@@ -43,41 +43,6 @@ First use coff_args to set PowerView.ps1 as powershell script to load and then u
 
 [*] CoffExec Arguments Updated
 +-------------------------------------------------------------------+
-=> coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup
-
-[*] Coffexec Output:
-
-[*] Using .NET version v4.0.30319
-
-
-ComputerName    GroupName                           Comment                                                             
-------------    ---------                           -------                                                             
-DESKTOP-URP43TK Access Control Assistance Operators Members of this group can remotely query authorization attributes...
-DESKTOP-URP43TK Administrators                      Administrators have complete and unrestricted access to the compu...
-DESKTOP-URP43TK Backup Operators                    Backup Operators can override security restrictions for the sole ...
-DESKTOP-URP43TK Cryptographic Operators             Members are authorized to perform cryptographic operations.         
-DESKTOP-URP43TK Distributed COM Users               Members are allowed to launch, activate and use Distributed COM o...
-DESKTOP-URP43TK Event Log Readers                   Members of this group can read event logs from local machine        
-DESKTOP-URP43TK Guests                              Guests have the same access as members of the Users group by defa...
-DESKTOP-URP43TK Hyper-V Administrators              Members of this group have complete and unrestricted access to al...
-DESKTOP-URP43TK IIS_IUSRS                           Built-in group used by Internet Information Services.               
-DESKTOP-URP43TK Network Configuration Operators     Members in this group can have some administrative privileges to ...
-DESKTOP-URP43TK Performance Log Users               Members of this group may schedule logging of performance counter...
-DESKTOP-URP43TK Performance Monitor Users           Members of this group can access performance counter data locally...
-DESKTOP-URP43TK Power Users                         Power Users are included for backwards compatibility and possess ...
-DESKTOP-URP43TK Remote Desktop Users                Members in this group are granted the right to logon remotely       
-DESKTOP-URP43TK Remote Management Users             Members of this group can access WMI resources over management pr...
-DESKTOP-URP43TK Replicator                          Supports file replication in a domain                               
-DESKTOP-URP43TK System Managed Accounts Group       Members of this group are managed by the system.                    
-DESKTOP-URP43TK Users                               Users are prevented from making accidental or intentional system-...
-
-
-
-
-
-[+] psinline Finished
-
-+-------------------------------------------------------------------+
 => coffexec /home/kali/CLionProjects/psinline/psinline.x64.o Get-NetLocalGroup | fl *
 
 2023/09/25 13:52:35 CEST [sent 41592 bytes]
