@@ -10,7 +10,7 @@ Takes as input the following parameters:
 2. Powershell script. A powershell script. In case you don't need to provide it, just you can create a dummy powershell script with just one line.
 3. powershell command.
 
-The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and pass the base64 blob as arguments to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
+The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and finally pass the base64 blob as argument to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
 
 ## How to build
 
