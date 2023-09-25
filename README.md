@@ -12,6 +12,25 @@ Takes as input the following parameters:
 
 The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and pass the base64 blob as arguments to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
 
+## How to build
+
+For building the BOF just run:
+```
+make -f MakeFile release
+```
+
+For building the debug version run:
+```
+make -f MakeFile debug
+```
+
+For building PS.exe import it in visual studio and compile release version.
+
+
+## Pre-Compiled binaries
+
+Pre-compiled binaries are available in the release package.
+
 ## Examples
 
 ### Run PowerView cmdlet
@@ -90,7 +109,7 @@ Comment      : Administrators have complete and unrestricted access to the compu
 
 ### Run generic powershell command
 
-Set script to import a dummy powershell script and then run **ls** command with coffexec:
+Set script to import a dummy powershell script and then run **ls** command with coffexec. You can find an example of dummy powershell script in the release package, named dummy.ps1:
 ```
 => set_coffargs /home/kali/CLionProjects/psinline/PS.exe /home/kali/CLionProjects/psinline/dummy.ps1 
 
