@@ -8,7 +8,7 @@ OPTIONS := -masm=intel -Wall -I include -Wl,--dynamicbase
 
 release:
 	$(CC_x64) -c psinline.c -o $(BOFNAME).x64.o $(OPTIONS)
-	#$(STRIP_x64) --strip-unneeded $(BOFNAME).x64.o
+	$(STRIP_x64) --strip-unneeded $(BOFNAME).x64.o
 debug:
 	$(CC_x64) -c psinline.c -o $(BOFNAME).x64.o $(OPTIONS) -DDEBUG
 clean:
