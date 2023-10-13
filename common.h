@@ -22,7 +22,7 @@ WINBASEAPI char* WINAPI MSVCRT$strrchr(char * str);
 WINBASEAPI int __cdecl MSVCRT$_open_osfhandle (intptr_t osfhandle, int flags);
 WINBASEAPI int __cdecl MSVCRT$_dup2( int fd1, int fd2 );
 WINBASEAPI int __cdecl MSVCRT$_close(int fd);
-
+WINBASEAPI int __cdecl MSVCRT$rand(void);
 WINADVAPI LONG WINAPI ADVAPI32$RegOpenKeyExA (HKEY, LPCSTR, DWORD, REGSAM, PHKEY);
 WINADVAPI LONG WINAPI ADVAPI32$RegCloseKey(HKEY);
 WINADVAPI LONG WINAPI ADVAPI32$RegSaveKeyA (HKEY, LPCSTR, LPSECURITY_ATTRIBUTES);

