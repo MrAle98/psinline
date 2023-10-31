@@ -6,13 +6,14 @@ for hardware breakpoints and [InlineExecute-Assembly](https://github.com/anthemt
 ## How it works 
 
 Takes as input the following parameters:
-1. PS.exe. Assembly that executes base64 encoded powershell
-2. Powershell script. A powershell script. In case you don't need to provide it, just you can create a dummy powershell script with just one line.
+1. PS.exe: Assembly that executes base64 encoded powershell
+2. Powershell script: A powershell script (.ps1 file). In case you don't need to provide it, you can just create a dummy powershell script with just one line.
 3. powershell command.
 
 The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and finally pass the base64 blob as argument to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
 
-## How to build
+**Be careful that psinline accepts ASCII may have issues with other encodings**. In case you have issues with loading scripts like PowerUpSQL.ps1, open the script in VSCode, select all, copy all and then paste in a new file. The new file now should be ASCII encoded, and psinline accepts it.  
+ ## How to build
 
 For building the BOF just run:
 ```
