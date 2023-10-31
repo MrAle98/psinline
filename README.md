@@ -12,7 +12,7 @@ Takes as input the following parameters:
 
 The BOF concatenates your powershell command to the powershell script, base64 encode the concatenation and finally pass the base64 blob as argument to PS.exe that executes it. It uses hardware breakpoints for AMSI/ETW bypass.
 
-**Be careful that psinline accepts ASCII may have issues with other encodings**. In case you have issues with loading scripts like PowerUpSQL.ps1, open the script in VSCode, select all, copy all and then paste in a new file. The new file now should be ASCII encoded, and psinline accepts it.  
+**Be careful that psinline accepts ASCII and may have issues with other encodings**. In case you have issues with loading scripts like PowerUpSQL.ps1, open the script in VSCode, select all, copy all and then paste in a new file. The new file now should be ASCII encoded, and psinline accepts it.  
  ## How to build
 
 For building the BOF just run:
